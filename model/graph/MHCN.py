@@ -58,12 +58,12 @@ class MHCN(GraphRecommender):
     def build(self):
         self.weights = {}
         self.n_channel = 4
-        initializer = tf.contrib.layers.xavier_initializer()
+        initializer = tf.contrib.layers.xavier_initializer()  # xavier初始化方法，正态分布的一种，使得每一层输出的方差应该尽量相等
         self.user_embeddings = tf.Variable(initializer([self.data.user_num, self.emb_size]))
         self.item_embeddings = tf.Variable(initializer([self.data.item_num, self.emb_size]))
-        self.u_idx = tf.placeholder(tf.int32, name="u_idx")
-        self.v_idx = tf.placeholder(tf.int32, name="v_idx")
-        self.neg_idx = tf.placeholder(tf.int32, name="neg_holder")
+        self.u_idx = tf.compat.v1.placeholder(tf.int32, name="u_idx")
+        self.v_idx = tf.compat.v1.placeholder(tf.int32, name="v_idx")
+        self.neg_idx = tf.compat.v1.placeholder(tf.int32, name="neg_holder")
         # define learnable paramters
         for i in range(self.n_channel):
             self.weights['gating%d' % (i + 1)] = tf.Variable(initializer([self.emb_size, self.emb_size]), name='g_W_%d_1' % (i + 1))
@@ -72,9 +72,9 @@ class MHCN(GraphRecommender):
             self.weights['sgating_bias%d' % (i + 1)] = tf.Variable(initializer([1, self.emb_size]), name='sg_W_b_%d_1' % (i + 1))
         self.weights['attention'] = tf.Variable(initializer([1, self.emb_size]), name='at')
         self.weights['attention_mat'] = tf.Variable(initializer([self.emb_size, self.emb_size]), name='atm')
-        tf_config = tf.ConfigProto()
+        tf_config = tf.compat.v1.ConfigProto()
         tf_config.gpu_options.allow_growth = True
-        self.sess = tf.Session(config=tf_config)
+        self.sess = tf.compat.v1.Session(config=tf_config)
 
         # define inline functions
         def self_gating(em, channel):
@@ -147,7 +147,7 @@ class MHCN(GraphRecommender):
         self.final_item_embeddings = item_embeddings
         self.final_user_embeddings, self.attention_score = channel_attention(user_embeddings_c1, user_embeddings_c2, user_embeddings_c3)
         self.final_user_embeddings += simple_user_embeddings / 2
-        # create self-supervised loss
+        # create self-supervised loss 自监督损失
         self.ss_loss += self.hierarchical_self_supervision(self_supervised_gating(self.final_user_embeddings, 1), H_s)
         self.ss_loss += self.hierarchical_self_supervision(self_supervised_gating(self.final_user_embeddings, 2), H_j)
         self.ss_loss += self.hierarchical_self_supervision(self_supervised_gating(self.final_user_embeddings, 3), H_p)
@@ -173,12 +173,12 @@ class MHCN(GraphRecommender):
         pos = score(user_embeddings, edge_embeddings)
         neg1 = score(row_shuffle(user_embeddings), edge_embeddings)
         neg2 = score(row_column_shuffle(edge_embeddings), user_embeddings)
-        local_loss = tf.reduce_sum(-tf.log(tf.sigmoid(pos - neg1)) - tf.log(tf.sigmoid(neg1 - neg2)))
+        local_loss = tf.reduce_sum(-tf.math.log(tf.sigmoid(pos - neg1)) - tf.math.log(tf.sigmoid(neg1 - neg2)))
         # Global MIM
         graph = tf.reduce_mean(edge_embeddings, 0)
         pos = score(edge_embeddings, graph)
         neg1 = score(row_column_shuffle(edge_embeddings), graph)
-        global_loss = tf.reduce_sum(-tf.log(tf.sigmoid(pos - neg1)))
+        global_loss = tf.reduce_sum(-tf.math.log(tf.sigmoid(pos - neg1)))
         return global_loss + local_loss
 
     def train(self):
@@ -188,16 +188,16 @@ class MHCN(GraphRecommender):
             reg_loss += self.reg * tf.nn.l2_loss(self.weights[key])
         reg_loss += self.reg * (tf.nn.l2_loss(self.batch_user_emb) + tf.nn.l2_loss(self.batch_neg_item_emb) + tf.nn.l2_loss(self.batch_pos_item_emb))
         total_loss = rec_loss + reg_loss + self.ss_loss
-        opt = tf.train.AdamOptimizer(self.lRate)
+        opt = tf.compat.v1.train.AdamOptimizer(self.lRate)
         train_op = opt.minimize(total_loss)
-        init = tf.global_variables_initializer()
+        init = tf.compat.v1.global_variables_initializer()
         self.sess.run(init)
         # Suggested Maximum epoch Setting: LastFM 120 Douban 30 Yelp 30
         for epoch in range(self.maxEpoch):
-            for n, batch in enumerate(next_batch_pairwise(self.data,self.batch_size)):
+            for n, batch in enumerate(next_batch_pairwise(self.data, self.batch_size)):
                 user_idx, i_idx, j_idx = batch
                 _, l1, l2 = self.sess.run([train_op, rec_loss, self.ss_loss], feed_dict={self.u_idx: user_idx, self.neg_idx: j_idx, self.v_idx: i_idx})
-                print('training:', epoch + 1, 'batch', n, 'rec loss:',l1,'ssl loss',l2)
+                print('training:', epoch + 1, 'batch', n, 'rec loss:', l1, 'ssl loss',l2)
             self.U, self.V = self.sess.run([self.final_user_embeddings, self.final_item_embeddings])
             self.fast_evaluation(epoch)
         self.U, self.V = self.best_user_emb, self.best_item_emb

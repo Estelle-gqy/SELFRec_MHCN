@@ -21,7 +21,7 @@ class Relation(Graph):
             if pair[0] not in self.user or pair[1] not in self.user:
                 idx.append(n)
         for item in reversed(idx):
-            del self.relation[item]
+            del self.relation[item]  # gqy: ?? 为什么要删除？
         for line in self.relation:
             user1, user2, weight = line
             # add relations to dict

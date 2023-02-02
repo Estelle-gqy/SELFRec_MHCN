@@ -24,7 +24,9 @@ if __name__ == '__main__':
     print('Self-Supervised Sequential Models:')
     print('   '.join(ssl_sequential_models))
     print('=' * 80)
-    model = input('Please enter the model you want to run:')
+    # model = input('Please enter the model you want to run:')
+    print('Selecting MHCN')
+    model = 'MHCN'
     import time
 
     s = time.time()
