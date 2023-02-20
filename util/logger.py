@@ -3,7 +3,7 @@ import os
 
 
 class Log(object):
-    def __init__(self,module,filename):
+    def __init__(self, module, filename):
         self.logger = logging.getLogger(module)
         self.logger.setLevel(level=logging.INFO)
         if not os.path.exists('./log/'):

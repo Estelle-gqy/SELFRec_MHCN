@@ -21,7 +21,7 @@ class ModelConf(object):
             raise IOError
         with open(file) as f:
             for ind,line in enumerate(f):
-                if line.strip()!='':
+                if line.strip() != '':
                     try:
                         key,value=line.strip().split('=')
                         self.config[key]=value
@@ -38,7 +38,7 @@ class OptionConf(object):
             self.mainOption = True
         elif self.line[0] == 'off':
             self.mainOption = False
-        for i,item in enumerate(self.line):
+        for i, item in enumerate(self.line):
             if (item.startswith('-') or item.startswith('--')) and  not item[1:].isdigit():
                 ind = i+1
                 for j,sub in enumerate(self.line[ind:]):
@@ -46,7 +46,7 @@ class OptionConf(object):
                         ind = j
                         break
                     if j == len(self.line[ind:])-1:
-                        ind=j+1
+                        ind = j+1
                         break
                 try:
                     self.options[item] = ' '.join(self.line[i+1:i+1+ind])
@@ -65,7 +65,7 @@ class OptionConf(object):
     def is_main_on(self):
         return self.mainOption
 
-    def contain(self,key):
+    def contain(self, key):
         return key in self.options
 
 

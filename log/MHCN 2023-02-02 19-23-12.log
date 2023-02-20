@@ -1,0 +1,16 @@
+2023-02-02 19:23:14,280 - MHCN - INFO - ### model configuration ###
+2023-02-02 19:23:14,281 - MHCN - INFO - training.set=./dataset/douban-book/train.txt
+2023-02-02 19:23:14,281 - MHCN - INFO - test.set=./dataset/douban-book/test.txt
+2023-02-02 19:23:14,281 - MHCN - INFO - social.data=./dataset/douban-book/trust.txt
+2023-02-02 19:23:14,281 - MHCN - INFO - model.name=MHCN
+2023-02-02 19:23:14,281 - MHCN - INFO - model.type=graph
+2023-02-02 19:23:14,281 - MHCN - INFO - item.ranking=-topN 10,20
+2023-02-02 19:23:14,281 - MHCN - INFO - embedding.size=64
+2023-02-02 19:23:14,281 - MHCN - INFO - num.max.epoch=30
+2023-02-02 19:23:14,281 - MHCN - INFO - batch_size=4096
+2023-02-02 19:23:14,281 - MHCN - INFO - learnRate=0.001
+2023-02-02 19:23:14,283 - MHCN - INFO - reg.lambda=0.0001
+2023-02-02 19:23:14,283 - MHCN - INFO - MHCN=-n_layer 2 -ss_rate 0.01
+2023-02-02 19:23:14,283 - MHCN - INFO - output.setup=-dir ./results/
+2023-02-02 23:59:33,287 - MHCN - INFO - ###Evaluation Results###
+2023-02-02 23:59:33,288 - MHCN - INFO - ['Top 10\n', 'Hit Ratio:0.07396\n', 'Precision:0.08285\n', 'Recall:0.10045\n', 'NDCG:0.12149\n', 'Top 20\n', 'Hit Ratio:0.11468\n', 'Precision:0.06423\n', 'Recall:0.14753\n', 'NDCG:0.12951\n']

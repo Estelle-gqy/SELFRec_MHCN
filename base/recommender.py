@@ -6,9 +6,9 @@ from time import strftime, localtime, time
 
 
 class Recommender(object):
-    def __init__(self, conf, training_set, test_set, **kwargs):
+    def __init__(self, conf, training_set, test_set, dev_data, **kwargs):
         self.config = conf
-        self.data = Data(self.config, training_set, test_set)
+        self.data = Data(self.config, training_set, test_set, dev_data)
         self.model_name = self.config['model.name']
         self.ranking = OptionConf(self.config['item.ranking'])
         self.emb_size = int(self.config['embedding.size'])
@@ -52,7 +52,13 @@ class Recommender(object):
     def predict(self, u):
         pass
 
+    def predict_by_item(self, u):
+        pass
+
     def test(self):
+        pass
+
+    def test_by_item(self):
         pass
 
     def save(self):
@@ -64,6 +70,9 @@ class Recommender(object):
     def evaluate(self, rec_list):
         pass
 
+    def evaluate_by_item(self, rec_list):
+        pass
+
     def execute(self):
         self.initializing_log()
         self.print_model_info()
@@ -72,6 +81,7 @@ class Recommender(object):
         print('Training Model...')
         self.train()
         print('Testing...')
-        rec_list = self.test()
+        # rec_list = self.test()  # 预测每个用户可能购买的候选item
+        rec_list = self.test_by_item()  # 预测每个item可能购买的候选用户
         print('Evaluating...')
-        self.evaluate(rec_list)
+        self.evaluate_by_item(rec_list)

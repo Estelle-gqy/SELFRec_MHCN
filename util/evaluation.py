@@ -8,26 +8,49 @@ class Metric(object):
     @staticmethod
     def hits(origin, res):
         hit_count = {}
-        for user in origin:
-            items = list(origin[user].keys())
-            predicted = [item[0] for item in res[user]]
-            hit_count[user] = len(set(items).intersection(set(predicted)))
+        # 以下是by_user的预测
+        # for user in origin:
+        #     items = list(origin[user].keys())
+        #     predicted = [item[0] for item in res[user]]
+        #     hit_count[user] = len(set(items).intersection(set(predicted)))
+        # 以下是by_item的预测
+        for item in origin:
+            users = list(origin[item].keys())
+            predicted = [user[0] for user in res[item]]
+            hit_count[item] = len(set(users).intersection(set(predicted)))
         return hit_count
 
     @staticmethod
     def hit_ratio(origin, hits):
         """
         Note: This type of hit ratio calculates the fraction:
-         (# retrieved interactions in the test set / #all the interactions in the test set)
+         (item_hr = # each item's retrieved interactions in the test set / #all the interactions in the test set of the item)
+         (hit_ratio = sum of all items' hit ratio / number of items)
         """
-        total_num = 0
-        for user in origin:
-            items = list(origin[user].keys())
-            total_num += len(items)
-        hit_num = 0
-        for user in hits:
-            hit_num += hits[user]
-        return round(hit_num/total_num,5)
+
+        hit_ration_list = []
+        for item in origin:
+            users = list(origin[item].keys())
+            user_num_of_item = len(users)
+            item_hit_ration = hits[item] / user_num_of_item  # 单个item的命中率
+            hit_ration_list.append(item_hit_ration)
+
+        return round(sum(hit_ration_list) / len(hit_ration_list), 5)
+
+    # @staticmethod
+    # def hit_ratio(origin, hits):
+    #     """
+    #     Note: This type of hit ratio calculates the fraction:
+    #      (# retrieved interactions in the test set / #all the interactions in the test set)
+    #     """
+    #     total_num = 0
+    #     for user in origin:
+    #         items = list(origin[user].keys())
+    #         total_num += len(items)
+    #     hit_num = 0
+    #     for user in hits:
+    #         hit_num += hits[user]
+    #     return round(hit_num/total_num,5)
 
     # # @staticmethod
     # def hit_ratio(origin, hits):
@@ -151,8 +174,8 @@ def ranking_evaluation(origin, res, N):
         indicators.append('Recall:' + str(recall) + '\n')
         # F1 = Metric.F1(prec, recall)
         # indicators.append('F1:' + str(F1) + '\n')
-        #MAP = Measure.MAP(origin, predicted, n)
-        #indicators.append('MAP:' + str(MAP) + '\n')
+        # MAP = Measure.MAP(origin, predicted, n)
+        # indicators.append('MAP:' + str(MAP) + '\n')
         NDCG = Metric.NDCG(origin, predicted, n)
         indicators.append('NDCG:' + str(NDCG) + '\n')
         # AUC = Measure.AUC(origin,res,rawRes)

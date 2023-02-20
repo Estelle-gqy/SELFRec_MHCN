@@ -1,10 +1,15 @@
 from SELFRec import SELFRec
 from util.conf import ModelConf
+import warnings
+warnings.filterwarnings("ignore", category=Warning)
+import os
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+
 
 if __name__ == '__main__':
     # Register your model here
     graph_baselines = ['LightGCN','DirectAU','MF','SASRec']
-    ssl_graph_models = ['SGL', 'SimGCL', 'SEPT', 'MHCN', 'BUIR', 'SelfCF', 'SSL4Rec', 'XSimGCL', 'NCL','MixGCF']
+    ssl_graph_models = ['SGL', 'SimGCL', 'SEPT', 'MHCN', 'MHCN_RETWEET', 'BUIR', 'SelfCF', 'SSL4Rec', 'XSimGCL', 'NCL','MixGCF']
     sequential_baselines= ['SASRec']
     ssl_sequential_models = ['CL4SRec']
 
@@ -25,8 +30,9 @@ if __name__ == '__main__':
     print('   '.join(ssl_sequential_models))
     print('=' * 80)
     # model = input('Please enter the model you want to run:')
-    print('Selecting MHCN')
+    # model = 'MHCN_RETWEET'
     model = 'MHCN'
+    print(f'Selecting {model}')
     import time
 
     s = time.time()
@@ -38,4 +44,4 @@ if __name__ == '__main__':
     rec = SELFRec(conf)
     rec.execute()
     e = time.time()
-    print("Running time: %f s" % (e - s))
+    print("Running time: %f mins" % ((e - s)/60))

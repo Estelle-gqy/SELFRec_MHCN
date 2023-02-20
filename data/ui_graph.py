@@ -5,19 +5,26 @@ from data.graph import Graph
 import scipy.sparse as sp
 import pickle
 
-class Interaction(Data,Graph):
-    def __init__(self, conf, training, test):
-        Graph.__init__(self)
-        Data.__init__(self,conf,training,test)
 
+class Interaction(Data, Graph):
+    def __init__(self, conf, training, test, dev):
+        Graph.__init__(self)
+        Data.__init__(self, conf, training, test, dev)
+        self.by_item = True  # True为给每个item推荐候选用户，False为给每个用户推荐商品
         self.user = {}
         self.item = {}
+        self.train_titles = []
+        self.dev_titles = []
+        self.test_titles = []
         self.id2user = {}
         self.id2item = {}
         self.training_set_u = defaultdict(dict)
         self.training_set_i = defaultdict(dict)
         self.test_set = defaultdict(dict)
+        self.test_set_i = defaultdict(dict)
         self.test_set_item = set()
+        self.dev_set_u = defaultdict(dict)
+        self.dev_set_i = defaultdict(dict)
         self.__generate_set()
         self.user_num = len(self.training_set_u)
         self.item_num = len(self.training_set_i)
@@ -34,22 +41,47 @@ class Interaction(Data,Graph):
 
     def __generate_set(self):
         for entry in self.training_data:
-            user, item, rating = entry
+            user, item, title, rating = entry
             if user not in self.user:
                 self.user[user] = len(self.user)
                 self.id2user[self.user[user]] = user
             if item not in self.item:
+                if title == '':
+                    print(entry)
+                self.train_titles.append(title)
                 self.item[item] = len(self.item)
                 self.id2item[self.item[item]] = item
                 # userList.append
             self.training_set_u[user][item] = rating
             self.training_set_i[item][user] = rating
+
+        for entry in self.dev_data:
+            user, item, title, rating = entry
+            # by_item情况下就要跳过不在训练集中的item
+            if self.by_item and item not in self.item:
+                continue
+            # by_user情况下 用户不在训练集中，就跳过
+            if not self.by_item and user not in self.user:
+                continue
+            self.dev_set_u[user][item] = rating
+            self.dev_set_i[item][user] = rating
+            if title not in self.dev_titles:
+                self.dev_titles.append(title)
+
         for entry in self.test_data:
-            user, item, rating = entry
-            if user not in self.user:
+            user, item, title, rating = entry
+            # by_item情况下就要跳过不在训练集中的item
+            if self.by_item and item not in self.item:
+                continue
+            # by_user情况下 用户不在训练集中，就跳过
+            if not self.by_item and user not in self.user:
                 continue
             self.test_set[user][item] = rating
             self.test_set_item.add(item)
+            self.test_set_i[item][user] = rating
+            # 把test_set_item对应的title保存起来
+            if title not in self.test_titles:
+                self.test_titles.append(title)
 
     def __create_sparse_bipartite_adjacency(self, self_connection=False):
         '''

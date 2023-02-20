@@ -23,13 +23,14 @@ class FileIO(object):
     def load_data_set(file, rec_type):
         if rec_type == 'graph':
             data = []
-            with open(file) as f:
+            with open(file, encoding='utf-8', errors='ignore') as f:
                 for line in f:
                     items = split(' ', line.strip())
                     user_id = items[0]
                     item_id = items[1]
-                    weight = items[2]
-                    data.append([user_id, item_id, float(weight)])
+                    title = items[2]
+                    weight = items[3]
+                    data.append([user_id, item_id, title, float(weight)])
 
         if rec_type == 'sequential':
             data = {}
@@ -59,8 +60,18 @@ class FileIO(object):
                 user1 = items[0]
                 user2 = items[1]
                 if len(items) < 3:
-                    weight = 1
+                    weight = 1  # 权重统一设置为1
                 else:
                     weight = float(items[2])
                 social_data.append([user1, user2, weight])
         return social_data
+
+    @staticmethod
+    def load_titles_data(file):
+        titles = []
+        print('loading titles data...')
+        with open(file, encoding='utf-8', errors='ignore') as f:
+            for line in f:
+                items = split(' ', line.strip())
+                titles = items[0]
+        return titles
