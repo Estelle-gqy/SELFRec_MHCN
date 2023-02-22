@@ -2,7 +2,7 @@ from random import shuffle,randint,choice,sample
 import numpy as np
 
 
-def next_batch_pairwise(data,batch_size,n_negs=1):
+def next_batch_pairwise(data, batch_size, n_negs=1):
     training_data = data.training_data
     shuffle(training_data)
     ptr = 0
@@ -12,17 +12,17 @@ def next_batch_pairwise(data,batch_size,n_negs=1):
             batch_end = ptr + batch_size
         else:
             batch_end = data_size
-        users = [training_data[idx][0] for idx in range(ptr, batch_end)]
-        items = [training_data[idx][1] for idx in range(ptr, batch_end)]
-        ptr = batch_end
-        u_idx, i_idx, j_idx = [], [], []
+        users = [training_data[idx][0] for idx in range(ptr, batch_end)]  # 获取当前batch的用户
+        items = [training_data[idx][1] for idx in range(ptr, batch_end)]  # 获取当前batch的item
+        ptr = batch_end  # 当前batch的末尾
+        u_idx, i_idx, j_idx = [], [], []  # 分别表示user、item、负例样本集合
         item_list = list(data.item.keys())
         for i, user in enumerate(users):
-            i_idx.append(data.item[items[i]])
-            u_idx.append(data.user[user])
-            for m in range(n_negs):
+            i_idx.append(data.item[items[i]])  # data.item[items[i]] 找到user对应的item的index
+            u_idx.append(data.user[user])  # 找到user的index
+            for m in range(n_negs):  # ！从训练集所有的item中，随机抽取一个样本作为负例样本
                 neg_item = choice(item_list)
-                while neg_item in data.training_set_u[user]:
+                while neg_item in data.training_set_u[user]:  # 如果neg_item在当前user处理过的item集合中，重新抽一次，为什么错的原因！
                     neg_item = choice(item_list)
                 j_idx.append(data.item[neg_item])
         yield u_idx, i_idx, j_idx

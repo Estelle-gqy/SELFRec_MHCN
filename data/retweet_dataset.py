@@ -4,13 +4,14 @@ import pandas as pd
 import os, math, tqdm, time
 import re, jieba
 from datetime import datetime
+from collections import defaultdict
 
 class Dataset(object):
     def __init__(self, data, staff_df):
         self.data = self.sort_by_time(data)
         self.staff_df = staff_df  # 作为构建社交关系的补充数据源
         self.user = {}
-        self.examiner = {}
+        self.examiner = defaultdict(dict)
         self.title = {}
         self.id2user = dict()
         self.id2title = dict()
@@ -63,7 +64,7 @@ class Dataset(object):
                 related_workers = self.data[self.data['审批人UID'] == examiner]['下一环节处理人'].to_list()
                 worker_list = set()
                 for rw in related_workers:
-                    worker_list.union(set(rw))
+                    worker_list = worker_list.union(set(rw))
 
                 for man in worker_list:
                     self.examiner[self.user[examiner]][self.user[man]] = 1
@@ -91,17 +92,15 @@ class Dataset(object):
 
         with open(self.records_save_path, 'w', encoding='utf-8') as fp:
             for idx in tqdm.tqdm(range(self.data.shape[0])):
-                next_step_worker, one_title, examiner = self.data.loc[idx,][0], self.data.loc[idx,][1], \
-                                                        self.data.loc[idx,][3]
+                next_step_worker, one_title, examiner = self.data.loc[idx, ][0], self.data.loc[idx, ][1], \
+                                                        self.data.loc[idx, ][3]
 
                 # 找出审批者曾经派发过文件的所有员工，不在worker list的标签为0，在的标签为1
                 for worker in self.examiner[self.user[examiner]].keys():
-                    if worker in next_step_worker:  # 此时worker list已经是
-                        fp.write(str(self.user[examiner]) + ' ' + str(self.title[one_title]) + ' ' + one_title + ' '
-                                 + str(self.user[worker]) + ' 1\n')  # （审批人id、公文id、公文标题、处理人id、rating）
+                    if self.id2user[worker] in next_step_worker:  # 此时worker list已经是
+                        fp.write(str(self.user[examiner]) + ' ' + str(self.title[one_title]) + ' ' + one_title + ' '+ str(worker) + ' 1\n')  # （审批人id、公文id、公文标题、处理人id、rating）
                     else:
-                        fp.write(str(self.user[examiner]) + ' ' + str(self.title[one_title]) + ' ' + one_title + ' '
-                                 + str(self.user[worker]) + ' 0\n')  # （审批人id、公文id、公文标题、处理人id、rating）
+                        fp.write(str(self.user[examiner]) + ' ' + str(self.title[one_title]) + ' ' + one_title + ' '+ str(worker) + ' 0\n')  # （审批人id、公文id、公文标题、处理人id、rating）
 
 
     def get_interaction_dataset(self, interaction_save_path, records_save_path, train_frac = 0.8):
@@ -262,7 +261,7 @@ def main():
     ds = Dataset(data, staff)
 
     # 一对多 转化为 一对一
-    flattened = False
+    flattened = True
     if not flattened:
         ds.flatten_record(records_save_path)
 

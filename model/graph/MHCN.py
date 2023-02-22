@@ -36,7 +36,7 @@ class MHCN(GraphRecommender):
 
 	def print_model_info(self):
 		super(MHCN, self).print_model_info()
-		# # print social relation statistics
+		# print social relation statistics
 		print('Social data size: (user number: %d, relation number: %d).' % (self.social_data.size()))
 		print('=' * 80)
 
@@ -170,7 +170,7 @@ class MHCN(GraphRecommender):
 		embedding = tf.convert_to_tensor(output_array, dtype=tf.float32)
 		return embedding
 
-	# build函数用于初始化层内的参数和变量，内部的魔法函数__call__会自动调用build()。相当于pytorch的forward函数
+	# 相当于pytorch的forward函数
 	def build(self):
 		self.weights = {}
 		self.n_channel = 3
@@ -261,7 +261,6 @@ class MHCN(GraphRecommender):
 		# averaging the channel-specific embeddings
 		user_embeddings_c1 = tf.reduce_sum(all_embeddings_c1, axis=0)
 		user_embeddings_c2 = tf.reduce_sum(all_embeddings_c2, axis=0)
-		# user_embeddings_c3 = tf.reduce_sum(all_embeddings_c3, axis=0)
 		simple_user_embeddings = tf.reduce_sum(all_embeddings_simple, axis=0)
 		item_embeddings = tf.reduce_sum(all_embeddings_i, axis=0)
 		# aggregating channel-specific embeddings
@@ -271,7 +270,6 @@ class MHCN(GraphRecommender):
 		# create self-supervised loss 自监督损失
 		self.ss_loss += self.hierarchical_self_supervision(self_supervised_gating(self.final_user_embeddings, 1), H_s)
 		self.ss_loss += self.hierarchical_self_supervision(self_supervised_gating(self.final_user_embeddings, 2), H_j)
-		# self.ss_loss += self.hierarchical_self_supervision(self_supervised_gating(self.final_user_embeddings, 3), H_p)
 		self.ss_loss = self.ss_rate * self.ss_loss
 
 		# embedding look-up 从one_hot到矩阵编码的转换过程需要在embedding进行查找，就是把对应的id的用户表示提取出来
