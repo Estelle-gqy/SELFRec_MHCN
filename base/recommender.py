@@ -49,6 +49,9 @@ class Recommender(object):
     def train(self):
         pass
 
+    def train_by_item(self):
+        pass
+
     def predict(self, u):
         pass
 
@@ -79,7 +82,7 @@ class Recommender(object):
         print('Initializing and building model...')
         self.build()
         print('Training Model...')
-        self.train()
+        self.train_by_item()
         print('Testing...')
         # rec_list = self.test()  # 预测每个用户可能购买的候选item
         rec_list = self.test_by_item()  # 预测每个item可能购买的候选用户

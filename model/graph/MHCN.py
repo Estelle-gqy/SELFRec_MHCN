@@ -36,7 +36,7 @@ class MHCN(GraphRecommender):
 
 	def print_model_info(self):
 		super(MHCN, self).print_model_info()
-		# # print social relation statistics
+		# print social relation statistics
 		print('Social data size: (user number: %d, relation number: %d).' % (self.social_data.size()))
 		print('=' * 80)
 
@@ -170,7 +170,7 @@ class MHCN(GraphRecommender):
 		embedding = tf.convert_to_tensor(output_array, dtype=tf.float32)
 		return embedding
 
-	# build函数用于初始化层内的参数和变量，内部的魔法函数__call__会自动调用build()。相当于pytorch的forward函数
+	# 相当于pytorch的forward函数
 	def build(self):
 		self.weights = {}
 		self.n_channel = 3
@@ -261,7 +261,6 @@ class MHCN(GraphRecommender):
 		# averaging the channel-specific embeddings
 		user_embeddings_c1 = tf.reduce_sum(all_embeddings_c1, axis=0)
 		user_embeddings_c2 = tf.reduce_sum(all_embeddings_c2, axis=0)
-		# user_embeddings_c3 = tf.reduce_sum(all_embeddings_c3, axis=0)
 		simple_user_embeddings = tf.reduce_sum(all_embeddings_simple, axis=0)
 		item_embeddings = tf.reduce_sum(all_embeddings_i, axis=0)
 		# aggregating channel-specific embeddings
@@ -271,14 +270,19 @@ class MHCN(GraphRecommender):
 		# create self-supervised loss 自监督损失
 		self.ss_loss += self.hierarchical_self_supervision(self_supervised_gating(self.final_user_embeddings, 1), H_s)
 		self.ss_loss += self.hierarchical_self_supervision(self_supervised_gating(self.final_user_embeddings, 2), H_j)
-		# self.ss_loss += self.hierarchical_self_supervision(self_supervised_gating(self.final_user_embeddings, 3), H_p)
 		self.ss_loss = self.ss_rate * self.ss_loss
 
 		# embedding look-up 从one_hot到矩阵编码的转换过程需要在embedding进行查找，就是把对应的id的用户表示提取出来
 		# self.final_item_embeddings是最终用户表示，self.neg_idx是负id
-		self.batch_neg_item_emb = tf.nn.embedding_lookup(self.final_item_embeddings, self.neg_idx)
-		self.batch_user_emb = tf.nn.embedding_lookup(self.final_user_embeddings, self.u_idx)
-		self.batch_pos_item_emb = tf.nn.embedding_lookup(self.final_item_embeddings, self.v_idx)
+		# 以下是by_user的embedding
+		# self.batch_neg_item_emb = tf.nn.embedding_lookup(self.final_item_embeddings, self.neg_idx)
+		# self.batch_user_emb = tf.nn.embedding_lookup(self.final_user_embeddings, self.u_idx)
+		# self.batch_pos_item_emb = tf.nn.embedding_lookup(self.final_item_embeddings, self.v_idx)
+
+		# 以下是by_item的embedding
+		self.batch_neg_user_emb = tf.nn.embedding_lookup(self.final_user_embeddings, self.neg_idx)
+		self.batch_item_emb = tf.nn.embedding_lookup(self.final_item_embeddings, self.v_idx)
+		self.batch_pos_user_emb = tf.nn.embedding_lookup(self.final_user_embeddings, self.u_idx)
 
 	def hierarchical_self_supervision(self, em, adj):
 		def row_shuffle(embedding):
@@ -324,6 +328,33 @@ class MHCN(GraphRecommender):
 				user_idx, i_idx, j_idx = batch
 				_, l1, l2 = self.sess.run([train_op, rec_loss, self.ss_loss], feed_dict={self.u_idx: user_idx, self.neg_idx: j_idx, self.v_idx: i_idx})
 				print('training:', epoch + 1, 'batch', n, 'rec loss:', l1, 'ssl loss',l2)
+			self.U, self.V = self.sess.run([self.final_user_embeddings, self.final_item_embeddings])
+			self.fast_evaluation_by_item(epoch)
+		self.U, self.V = self.best_user_emb, self.best_item_emb
+
+	def train_by_item(self):
+		rec_loss = bpr_loss(self.batch_item_emb, self.batch_pos_user_emb, self.batch_neg_user_emb)
+		reg_loss = 0
+		for key in self.weights:
+			reg_loss += self.reg * tf.nn.l2_loss(self.weights[key])
+		reg_loss += self.reg * (
+					tf.nn.l2_loss(self.batch_item_emb) + tf.nn.l2_loss(self.batch_neg_user_emb) + tf.nn.l2_loss(
+				self.batch_pos_user_emb))
+		total_loss = rec_loss + reg_loss + self.ss_loss
+		opt = tf.compat.v1.train.AdamOptimizer(self.lRate)
+		train_op = opt.minimize(total_loss)
+		init = tf.compat.v1.global_variables_initializer()
+		self.sess.run(init)  # 启动默认会话，训练神经网络
+
+		# Suggested Maximum epoch Setting: LastFM 120 Douban 30 Yelp 30
+		# session.run()函数：Runs operations and evaluates tensors in `fetches`， fecches是从计算图中取出对应变量的参数，
+		# 可以是单个图元素、任意的列表、元组、字典等等形式的图元素。图元素包括操作、张量、稀疏张量、句柄、字符串等等。
+		for epoch in range(self.maxEpoch):
+			for n, batch in enumerate(next_batch_pairwise(self.data, self.batch_size)):
+				user_idx, i_idx, j_idx = batch
+				_, l1, l2 = self.sess.run([train_op, rec_loss, self.ss_loss],
+										  feed_dict={self.u_idx: user_idx, self.neg_idx: j_idx, self.v_idx: i_idx})
+				print('training:', epoch + 1, 'batch', n, 'rec loss:', l1, 'ssl loss', l2)
 			self.U, self.V = self.sess.run([self.final_user_embeddings, self.final_item_embeddings])
 			self.fast_evaluation_by_item(epoch)
 		self.U, self.V = self.best_user_emb, self.best_item_emb
