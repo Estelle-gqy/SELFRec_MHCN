@@ -27,6 +27,7 @@ import numpy as np
 #                 j_idx.append(data.item[neg_item])
 #         yield u_idx, i_idx, j_idx
 
+
 # by-item的推荐，根据每个item推荐user
 def next_batch_pairwise(data, batch_size, n_negs=1):
     training_data = data.training_data

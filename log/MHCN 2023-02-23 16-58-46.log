@@ -13,3 +13,5 @@
 2023-02-23 16:58:46,852 - MHCN - INFO - reg.lambda=0.0001
 2023-02-23 16:58:46,852 - MHCN - INFO - MHCN=-n_layer 2 -ss_rate 0.01
 2023-02-23 16:58:46,852 - MHCN - INFO - output.setup=-dir ./results/
+2023-02-23 17:14:47,312 - MHCN - INFO - ###Evaluation Results###
+2023-02-23 17:14:47,312 - MHCN - INFO - ['Top 100\n', 'Hit Ratio:0.01987\n', 'Precision:0.00064\n', 'Recall:0.01987\n', 'NDCG:0.0069\n']
