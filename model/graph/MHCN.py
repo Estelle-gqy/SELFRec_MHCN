@@ -177,6 +177,7 @@ class MHCN(GraphRecommender):
 		self.u_idx = tf.compat.v1.placeholder(tf.int32, name="u_idx")
 		self.v_idx = tf.compat.v1.placeholder(tf.int32, name="v_idx")
 		self.neg_idx = tf.compat.v1.placeholder(tf.int32, name="neg_holder")
+		self.batch_labels = tf.compat.v1.placeholder(tf.int32, name="batch_labels")
 
 		initializer = tf.contrib.layers.xavier_initializer()  # xavier初始化方法，正态分布的一种，使得每一层输出的方差应该尽量相等
 		self.user_embeddings = tf.Variable(initializer([self.data.user_num, self.emb_size]))  # 创建了尺寸为(user_num, emb_size)的tensor，user_num为用户总数
@@ -267,7 +268,8 @@ class MHCN(GraphRecommender):
 		self.final_item_embeddings = item_embeddings
 		self.final_user_embeddings, self.attention_score = channel_attention(user_embeddings_c1, user_embeddings_c2)
 		self.final_user_embeddings += simple_user_embeddings / 2
-		# create self-supervised loss 自监督损失
+
+		# create self-supervised loss 自监督损失,以下是by_user的自监督损失
 		self.ss_loss += self.hierarchical_self_supervision(self_supervised_gating(self.final_user_embeddings, 1), H_s)
 		self.ss_loss += self.hierarchical_self_supervision(self_supervised_gating(self.final_user_embeddings, 2), H_j)
 		self.ss_loss = self.ss_rate * self.ss_loss
@@ -284,6 +286,20 @@ class MHCN(GraphRecommender):
 		self.batch_item_emb = tf.nn.embedding_lookup(self.final_item_embeddings, self.v_idx)
 		self.batch_pos_user_emb = tf.nn.embedding_lookup(self.final_user_embeddings, self.u_idx)
 
+		# TODO: 将处理人和item embedding拼接起来，做二分类判断，得到logits
+		self.concat_embeddings = tf.concat(values=[self.user_embeddings, self.item_embeddings], axis=1)
+		self.fcn_w1 = tf.Variable(initializer([self.emb_size, 128]))
+		self.fcn_b1 = tf.Variable(initializer([1, 128]))
+		self.xw1_plus_b1 = tf.matmul(self.concat_embeddings, self.fcn_w1) + self.fcn_b1
+		self.fcc_output1 = tf.sigmoid(self.xw1_plus_b1)
+
+		self.fcn_w2 = tf.Variable(initializer([128, 2]))
+		self.fcn_b2 = tf.Variable(initializer([1, 2]))
+		self.xw2_plus_b2 = tf.matmul(self.fcc_output1, self.fcn_w2) + self.fcn_b2
+		self.fcc_output2 = tf.sigmoid(self.xw2_plus_b2)
+		self.logits = tf.argmax(input=self.fcc_output2, axis=1)  # TODO:要不要加tf.argmax
+
+	# 自监督损失
 	def hierarchical_self_supervision(self, em, adj):
 		def row_shuffle(embedding):
 			return tf.gather(embedding, tf.random.shuffle(tf.range(tf.shape(embedding)[0])))
@@ -308,8 +324,11 @@ class MHCN(GraphRecommender):
 		global_loss = tf.reduce_sum(-tf.math.log(tf.sigmoid(pos - neg1)))
 		return global_loss + local_loss
 
+
 	def train(self):
-		rec_loss = bpr_loss(self.batch_user_emb, self.batch_pos_item_emb, self.batch_neg_item_emb)
+		# TODO：labels需要placeholder，
+		rec_loss = tf.nn.softmax_cross_entropy_with_logits(labels=self.batch_labels, logits=)
+		# rec_loss = bpr_loss(self.batch_user_emb, self.batch_pos_item_emb, self.batch_neg_item_emb)
 		reg_loss = 0
 		for key in self.weights:
 			reg_loss += self.reg * tf.nn.l2_loss(self.weights[key])
@@ -321,13 +340,14 @@ class MHCN(GraphRecommender):
 		self.sess.run(init)  # 启动默认会话，训练神经网络
 
 		# Suggested Maximum epoch Setting: LastFM 120 Douban 30 Yelp 30
-		# session.run()函数：Runs operations and evaluates tensors in `fetches`， fecches是从计算图中取出对应变量的参数，
+		# session.run()函数：Runs operations and evaluates tensors in `fetches`， fetches是从计算图中取出对应变量的参数，
 		# 可以是单个图元素、任意的列表、元组、字典等等形式的图元素。图元素包括操作、张量、稀疏张量、句柄、字符串等等。
+		# TODO：修改
 		for epoch in range(self.maxEpoch):
 			for n, batch in enumerate(next_batch_pairwise(self.data, self.batch_size)):
 				user_idx, i_idx, j_idx = batch
-				_, l1, l2 = self.sess.run([train_op, rec_loss, self.ss_loss], feed_dict={self.u_idx: user_idx, self.neg_idx: j_idx, self.v_idx: i_idx})
-				print('training:', epoch + 1, 'batch', n, 'rec loss:', l1, 'ssl loss',l2)
+				_, loss1, loss2 = self.sess.run([train_op, rec_loss, self.ss_loss], feed_dict={self.u_idx: user_idx, self.batch_labels: j_idx, self.v_idx: i_idx})
+				print('training:', epoch + 1, 'batch', n, 'rec loss:', loss1, 'ssl loss',loss2)
 			self.U, self.V = self.sess.run([self.final_user_embeddings, self.final_item_embeddings])
 			self.fast_evaluation_by_item(epoch)
 		self.U, self.V = self.best_user_emb, self.best_item_emb
