@@ -26,11 +26,12 @@ class FileIO(object):
             with open(file, encoding='utf-8', errors='ignore') as f:
                 for line in f:
                     items = split(' ', line.strip())
-                    user_id = items[0]
+                    examiner_id = items[0]
                     item_id = items[1]
                     title = items[2]
-                    weight = items[3]
-                    data.append([user_id, item_id, title, float(weight)])
+                    user = items[3]
+                    label = items[4]
+                    data.append([examiner_id, item_id, title, user, label])
 
         if rec_type == 'sequential':
             data = {}

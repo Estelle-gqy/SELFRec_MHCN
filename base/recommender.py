@@ -82,9 +82,10 @@ class Recommender(object):
         print('Initializing and building model...')
         self.build()
         print('Training Model...')
-        self.train_by_item()
+        self.train()
         print('Testing...')
         # rec_list = self.test()  # 预测每个用户可能购买的候选item
-        rec_list = self.test_by_item()  # 预测每个item可能购买的候选用户
+        # rec_list = self.test_by_item()  # 预测每个item可能购买的候选用户
         print('Evaluating...')
-        self.evaluate_by_item(rec_list)
+        self.evaluate()
+        # self.evaluate_by_item(rec_list)

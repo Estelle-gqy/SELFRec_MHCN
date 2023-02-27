@@ -220,8 +220,6 @@ class MHCN(GraphRecommender):
 		H_s = TFGraphInterface.convert_sparse_mat_to_tensor(H_s)
 		H_j = M_matrices[1]
 		H_j = TFGraphInterface.convert_sparse_mat_to_tensor(H_j)
-		# H_p = M_matrices[2]
-		# H_p = TFGraphInterface.convert_sparse_mat_to_tensor(H_p)
 		R = TFGraphInterface.convert_sparse_mat_to_tensor(self.data.normalize_graph_mat(self.data.interaction_mat))
 		# self-gating
 		user_embeddings_c1 = self_gating(self.user_embeddings, 1)
@@ -247,10 +245,7 @@ class MHCN(GraphRecommender):
 			user_embeddings_c2 = tf.sparse_tensor_dense_matmul(H_j, user_embeddings_c2)
 			norm_embeddings = tf.math.l2_normalize(user_embeddings_c2, axis=1)
 			all_embeddings_c2 += [norm_embeddings]
-			# Channel P
-			# user_embeddings_c3 = tf.sparse_tensor_dense_matmul(H_p, user_embeddings_c3)
-			# norm_embeddings = tf.math.l2_normalize(user_embeddings_c3, axis=1)
-			# all_embeddings_c3 += [norm_embeddings]
+
 			# item convolution
 			new_item_embeddings = tf.sparse_tensor_dense_matmul(tf.sparse.transpose(R), mixed_embedding)
 			norm_embeddings = tf.math.l2_normalize(new_item_embeddings, axis=1)
@@ -274,6 +269,8 @@ class MHCN(GraphRecommender):
 		self.ss_loss += self.hierarchical_self_supervision(self_supervised_gating(self.final_user_embeddings, 2), H_j)
 		self.ss_loss = self.ss_rate * self.ss_loss
 
+
+
 		# embedding look-up 从one_hot到矩阵编码的转换过程需要在embedding进行查找，就是把对应的id的用户表示提取出来
 		# self.final_item_embeddings是最终用户表示，self.neg_idx是负id
 		# 以下是by_user的embedding
@@ -282,22 +279,23 @@ class MHCN(GraphRecommender):
 		# self.batch_pos_item_emb = tf.nn.embedding_lookup(self.final_item_embeddings, self.v_idx)
 
 		# 以下是by_item的embedding
-		self.batch_neg_user_emb = tf.nn.embedding_lookup(self.final_user_embeddings, self.neg_idx)
+		# self.batch_neg_user_emb = tf.nn.embedding_lookup(self.final_user_embeddings, self.neg_idx)
 		self.batch_item_emb = tf.nn.embedding_lookup(self.final_item_embeddings, self.v_idx)
-		self.batch_pos_user_emb = tf.nn.embedding_lookup(self.final_user_embeddings, self.u_idx)
+		self.batch_user_emb = tf.nn.embedding_lookup(self.final_user_embeddings, self.u_idx)
 
 		# TODO: 将处理人和item embedding拼接起来，做二分类判断，得到logits
-		self.concat_embeddings = tf.concat(values=[self.user_embeddings, self.item_embeddings], axis=1)
-		self.fcn_w1 = tf.Variable(initializer([self.emb_size, 128]))
-		self.fcn_b1 = tf.Variable(initializer([1, 128]))
+		self.class_num = 2
+		self.concat_embeddings = tf.concat(values=[self.batch_user_emb, self.batch_item_emb], axis=1)
+		self.fcn_w1 = tf.Variable(initializer([self.emb_size * 2, 64]))
+		self.fcn_b1 = tf.Variable(initializer([len(self.v_idx), 64]))
 		self.xw1_plus_b1 = tf.matmul(self.concat_embeddings, self.fcn_w1) + self.fcn_b1
 		self.fcc_output1 = tf.sigmoid(self.xw1_plus_b1)
 
-		self.fcn_w2 = tf.Variable(initializer([128, 2]))
-		self.fcn_b2 = tf.Variable(initializer([1, 2]))
+		self.fcn_w2 = tf.Variable(initializer([64, self.class_num]))
+		self.fcn_b2 = tf.Variable(initializer([len(self.v_idx), self.class_num]))
 		self.xw2_plus_b2 = tf.matmul(self.fcc_output1, self.fcn_w2) + self.fcn_b2
 		self.fcc_output2 = tf.sigmoid(self.xw2_plus_b2)
-		self.logits = tf.argmax(input=self.fcc_output2, axis=1)  # TODO:要不要加tf.argmax
+		self.logits = tf.argmax(input=self.fcc_output2, axis=1)
 
 	# 自监督损失
 	def hierarchical_self_supervision(self, em, adj):
@@ -327,29 +325,35 @@ class MHCN(GraphRecommender):
 
 	def train(self):
 		# TODO：labels需要placeholder，
-		rec_loss = tf.nn.softmax_cross_entropy_with_logits(labels=self.batch_labels, logits=)
+		rec_loss = tf.nn.softmax_cross_entropy_with_logits(labels=self.batch_labels, logits=self.logits)
 		# rec_loss = bpr_loss(self.batch_user_emb, self.batch_pos_item_emb, self.batch_neg_item_emb)
 		reg_loss = 0
 		for key in self.weights:
 			reg_loss += self.reg * tf.nn.l2_loss(self.weights[key])
-		reg_loss += self.reg * (tf.nn.l2_loss(self.batch_user_emb) + tf.nn.l2_loss(self.batch_neg_item_emb) + tf.nn.l2_loss(self.batch_pos_item_emb))
 		total_loss = rec_loss + reg_loss + self.ss_loss
 		opt = tf.compat.v1.train.AdamOptimizer(self.lRate)
 		train_op = opt.minimize(total_loss)
 		init = tf.compat.v1.global_variables_initializer()
 		self.sess.run(init)  # 启动默认会话，训练神经网络
 
-		# Suggested Maximum epoch Setting: LastFM 120 Douban 30 Yelp 30
-		# session.run()函数：Runs operations and evaluates tensors in `fetches`， fetches是从计算图中取出对应变量的参数，
-		# 可以是单个图元素、任意的列表、元组、字典等等形式的图元素。图元素包括操作、张量、稀疏张量、句柄、字符串等等。
+		# 正确率
+		self.correct_predictions = tf.equal(self.logits, self.batch_labels)
+		self.accuracy = tf.reduce_mean(tf.cast(self.correct_predictions, "float"), name="accuracy")
+
 		# TODO：修改
 		for epoch in range(self.maxEpoch):
 			for n, batch in enumerate(next_batch_pairwise(self.data, self.batch_size)):
-				user_idx, i_idx, j_idx = batch
-				_, loss1, loss2 = self.sess.run([train_op, rec_loss, self.ss_loss], feed_dict={self.u_idx: user_idx, self.batch_labels: j_idx, self.v_idx: i_idx})
-				print('training:', epoch + 1, 'batch', n, 'rec loss:', loss1, 'ssl loss',loss2)
+				user_idx, i_idx, labels = batch
+				_, loss1, loss2, acc = self.sess.run([train_op, rec_loss, self.ss_loss, self.accuracy], feed_dict={self.u_idx: user_idx, self.v_idx: i_idx, self.batch_labels: labels})
+				print('training:', epoch + 1, 'batch', n, 'rec loss:', loss1, 'ssl loss',loss2, ' acc:', acc)
 			self.U, self.V = self.sess.run([self.final_user_embeddings, self.final_item_embeddings])
-			self.fast_evaluation_by_item(epoch)
+			# validation
+			dev_acc = self.sess.run(self.accuracy, feed_dict={self.batch_labels: self.data.dev_data[4],
+									self.u_idx: self.data.dev_data[3], self.v_idx: self.data.dev_data[1]})
+
+			print('Validating the model...')
+			print('-' * 120)
+			print('Epoch:', str(epoch + 1) + ', dev acc:', dev_acc)
 		self.U, self.V = self.best_user_emb, self.best_item_emb
 
 	def train_by_item(self):

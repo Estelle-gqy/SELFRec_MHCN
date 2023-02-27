@@ -39,20 +39,22 @@ def next_batch_pairwise(data, batch_size, n_negs=1):
             batch_end = ptr + batch_size
         else:
             batch_end = data_size
-        users = [training_data[idx][0] for idx in range(ptr, batch_end)]  # 获取当前batch的用户
+        users = [training_data[idx][3] for idx in range(ptr, batch_end)]  # 获取当前batch的用户
         items = [training_data[idx][1] for idx in range(ptr, batch_end)]  # 获取当前batch的item
+        labels = [training_data[idx][4] for idx in range(ptr, batch_end)]
         ptr = batch_end  # 当前batch的末尾
-        u_idx, i_idx, j_idx = [], [], []  # 分别表示user、item、负例user样本集合
-        user_list = list(data.user.keys())
-        for i, item in enumerate(items):
-            i_idx.append(data.item[item])  # data.item[items[i]] 找到user对应的item的index
-            u_idx.append(data.user[users[i]])  # 找到user的index
-            for m in range(n_negs):  # ！从训练集所有的item中，随机抽取一个样本作为负例样本
-                neg_user = choice(user_list)
-                while neg_user in data.training_set_i[item]:  # 如果neg_item在当前user处理过的item集合中，重新抽一次，为什么错的原因！
-                    neg_user = choice(user_list)
-                j_idx.append(data.user[neg_user])
-        yield u_idx, i_idx, j_idx
+        # users, labels = [], []
+        # u_idx, i_idx, j_idx = [], [], []  # 分别表示user、item、负例user样本集合
+        # user_list = list(data.user.keys())
+        # for i, item in enumerate(items):
+        #     i_idx.append(data.item[item])  # data.item[items[i]] 找到user对应的item的index
+        #     u_idx.append(data.user[users[i]])  # 找到user的index
+        #     for m in range(n_negs):  # ！从训练集所有的item中，随机抽取一个样本作为负例样本
+        #         neg_user = choice(user_list)
+        #         while neg_user in data.training_set_i[item]:  # 如果neg_item在当前user处理过的item集合中，重新抽一次，为什么错的原因！
+        #             neg_user = choice(user_list)
+        #         j_idx.append(data.user[neg_user])
+        yield users, items, labels
 
 def next_batch_pointwise(data,batch_size):
     training_data = data.training_data

@@ -41,10 +41,13 @@ class Interaction(Data, Graph):
 
     def __generate_set(self):
         for entry in self.training_data:
-            user, item, title, rating = entry
+            examiner, item, title, user, label = entry
             if user not in self.user:
                 self.user[user] = len(self.user)
                 self.id2user[self.user[user]] = user
+            if examiner not in self.user:
+                self.user[examiner] = len(self.user)
+                self.id2user[self.user[examiner]] = examiner
             if item not in self.item:
                 if title == '':
                     print(entry)
@@ -52,33 +55,33 @@ class Interaction(Data, Graph):
                 self.item[item] = len(self.item)
                 self.id2item[self.item[item]] = item
                 # userList.append
-            self.training_set_u[user][item] = rating
-            self.training_set_i[item][user] = rating
+            self.training_set_u[user][item] = label
+            self.training_set_i[item][user] = label
 
         for entry in self.dev_data:
-            user, item, title, rating = entry
+            examiner, item, title, user, label = entry
             # by_item情况下就要跳过不在训练集中的item
             if self.by_item and item not in self.item:
                 continue
             # by_user情况下 用户不在训练集中，就跳过
             if not self.by_item and user not in self.user:
                 continue
-            self.dev_set_u[user][item] = rating
-            self.dev_set_i[item][user] = rating
+            self.dev_set_u[user][item] = label
+            self.dev_set_i[item][user] = label
             if title not in self.dev_titles:
                 self.dev_titles.append(title)
 
         for entry in self.test_data:
-            user, item, title, rating = entry
+            examiner, item, title, user, label = entry
             # by_item情况下就要跳过不在训练集中的item
             if self.by_item and item not in self.item:
                 continue
             # by_user情况下 用户不在训练集中，就跳过
             if not self.by_item and user not in self.user:
                 continue
-            self.test_set[user][item] = rating
+            self.test_set[user][item] = label
             self.test_set_item.add(item)
-            self.test_set_i[item][user] = rating
+            self.test_set_i[item][user] = label
             # 把test_set_item对应的title保存起来
             if title not in self.test_titles:
                 self.test_titles.append(title)
@@ -114,10 +117,10 @@ class Interaction(Data, Graph):
         """
         row, col, entries = [], [], []
         for pair in self.training_data:
-            row += [self.user[pair[0]]]
+            row += [self.user[pair[3]]]
             col += [self.item[pair[1]]]
             entries += [1.0]
-        interaction_mat = sp.csr_matrix((entries, (row, col)), shape=(self.user_num,self.item_num),dtype=np.float32)
+        interaction_mat = sp.csr_matrix((entries, (row, col)), shape=(self.user_num, self.item_num), dtype=np.float32)
         return interaction_mat
 
     def get_user_id(self, u):

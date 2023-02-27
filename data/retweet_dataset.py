@@ -98,9 +98,9 @@ class Dataset(object):
                 # 找出审批者曾经派发过文件的所有员工，不在worker list的标签为0，在的标签为1
                 for worker in self.examiner[self.user[examiner]].keys():
                     if self.id2user[worker] in next_step_worker:  # 此时worker list已经是
-                        fp.write(str(self.user[examiner]) + ' ' + str(self.title[one_title]) + ' ' + one_title + ' '+ str(worker) + ' 1\n')  # （审批人id、公文id、公文标题、处理人id、rating）
+                        fp.write(str(self.user[examiner]) + ' ' + str(self.title[one_title]) + ' ' + one_title + ' '+ str(worker) + ' ' + '1\n')  # （审批人id、公文id、公文标题、处理人id、rating）
                     else:
-                        fp.write(str(self.user[examiner]) + ' ' + str(self.title[one_title]) + ' ' + one_title + ' '+ str(worker) + ' 0\n')  # （审批人id、公文id、公文标题、处理人id、rating）
+                        fp.write(str(self.user[examiner]) + ' ' + str(self.title[one_title]) + ' ' + one_title + ' '+ str(worker) + ' ' + '0\n')  # （审批人id、公文id、公文标题、处理人id、rating）
 
 
     def get_interaction_dataset(self, interaction_save_path, records_save_path, train_frac = 0.8):
