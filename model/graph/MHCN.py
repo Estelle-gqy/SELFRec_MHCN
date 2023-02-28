@@ -10,18 +10,25 @@ warnings.filterwarnings("ignore", category=Warning)
 import numpy as np
 from base.graph_recommender import GraphRecommender
 import tensorflow as tf
-import tensorflow_hub as hub
+# import tensorflow_hub as hub
 from bert.tokenization import FullTokenizer
 from util.loss_tf import bpr_loss
 from data.social import Relation
 from base.tf_interface import TFGraphInterface
 from util.sampler import next_batch_pairwise
 from util.conf import OptionConf
-tf.logging.set_verbosity(tf.logging.ERROR)
-from keras.preprocessing.text import Tokenizer
-from keras.preprocessing.sequence import  pad_sequences
+tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
+# from keras.preprocessing.text import Tokenizer
+# from keras.preprocessing.sequence import  pad_sequences
 from gensim.test.utils import common_texts,get_tmpfile
 from gensim.models import Word2Vec
+
+#tf.ConfigProto()主要的作用是配置tf.Session的运算方式
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True  # 不全部占满显存, 按需分配
+config.gpu_options.per_process_gpu_memory_fraction = 0.7  # 限制GPU内存占用率
+sess = tf.Session(config=config)
+
 
 # paper: Self-Supervised Multi-Channel Hypergraph Convolutional Network for Social Recommendation. WWW'21
 
@@ -32,7 +39,7 @@ class MHCN(GraphRecommender):
 		self.n_layers = int(args['-n_layer'])
 		self.ss_rate = float(args['-ss_rate'])
 		self.social_data = Relation(conf, kwargs['social.data'], self.data.user)
-		self.data.by_item = True  # True为给每个item推荐候选用户，False为给每个用户推荐商品
+		self.data.by_item = False  # True为给每个item推荐候选用户，False为给每个用户推荐商品
 
 	def print_model_info(self):
 		super(MHCN, self).print_model_info()
@@ -175,9 +182,10 @@ class MHCN(GraphRecommender):
 		self.weights = {}
 		self.n_channel = 3
 		self.u_idx = tf.compat.v1.placeholder(tf.int32, name="u_idx")
+		self.examiner_idx = tf.compat.v1.placeholder(tf.int32, name="examiner_idx")
 		self.v_idx = tf.compat.v1.placeholder(tf.int32, name="v_idx")
 		self.neg_idx = tf.compat.v1.placeholder(tf.int32, name="neg_holder")
-		self.batch_labels = tf.compat.v1.placeholder(tf.int32, name="batch_labels")
+		self.batch_labels = tf.compat.v1.placeholder(tf.float32, name="batch_labels")
 
 		initializer = tf.contrib.layers.xavier_initializer()  # xavier初始化方法，正态分布的一种，使得每一层输出的方差应该尽量相等
 		self.user_embeddings = tf.Variable(initializer([self.data.user_num, self.emb_size]))  # 创建了尺寸为(user_num, emb_size)的tensor，user_num为用户总数
@@ -269,8 +277,6 @@ class MHCN(GraphRecommender):
 		self.ss_loss += self.hierarchical_self_supervision(self_supervised_gating(self.final_user_embeddings, 2), H_j)
 		self.ss_loss = self.ss_rate * self.ss_loss
 
-
-
 		# embedding look-up 从one_hot到矩阵编码的转换过程需要在embedding进行查找，就是把对应的id的用户表示提取出来
 		# self.final_item_embeddings是最终用户表示，self.neg_idx是负id
 		# 以下是by_user的embedding
@@ -279,23 +285,25 @@ class MHCN(GraphRecommender):
 		# self.batch_pos_item_emb = tf.nn.embedding_lookup(self.final_item_embeddings, self.v_idx)
 
 		# 以下是by_item的embedding
-		# self.batch_neg_user_emb = tf.nn.embedding_lookup(self.final_user_embeddings, self.neg_idx)
+		self.batch_examiner_emb = tf.nn.embedding_lookup(self.final_user_embeddings, self.examiner_idx)
 		self.batch_item_emb = tf.nn.embedding_lookup(self.final_item_embeddings, self.v_idx)
 		self.batch_user_emb = tf.nn.embedding_lookup(self.final_user_embeddings, self.u_idx)
 
-		# TODO: 将处理人和item embedding拼接起来，做二分类判断，得到logits
+		# TODO: 将领导！和！处理人和item embedding拼接起来，做二分类判断，得到logits
 		self.class_num = 2
-		self.concat_embeddings = tf.concat(values=[self.batch_user_emb, self.batch_item_emb], axis=1)
-		self.fcn_w1 = tf.Variable(initializer([self.emb_size * 2, 64]))
-		self.fcn_b1 = tf.Variable(initializer([len(self.v_idx), 64]))
-		self.xw1_plus_b1 = tf.matmul(self.concat_embeddings, self.fcn_w1) + self.fcn_b1
+		self.concat_embeddings = tf.concat(values=[self.batch_examiner_emb, self.batch_user_emb, self.batch_item_emb], axis=1)
+		self.x = tf.compat.v1.placeholder(tf.float32, shape=[None, self.emb_size * 3])
+		self.fcn_w1 = tf.Variable(initializer([self.emb_size * 3, 64]))
+		self.fcn_b1 = tf.Variable(initializer([1, 64]))
+		self.xw1_plus_b1 = tf.matmul(self.x, self.fcn_w1) + self.fcn_b1
 		self.fcc_output1 = tf.sigmoid(self.xw1_plus_b1)
 
 		self.fcn_w2 = tf.Variable(initializer([64, self.class_num]))
-		self.fcn_b2 = tf.Variable(initializer([len(self.v_idx), self.class_num]))
+		self.fcn_b2 = tf.Variable(initializer([1, self.class_num]))
 		self.xw2_plus_b2 = tf.matmul(self.fcc_output1, self.fcn_w2) + self.fcn_b2
 		self.fcc_output2 = tf.sigmoid(self.xw2_plus_b2)
 		self.logits = tf.argmax(input=self.fcc_output2, axis=1)
+		self.logits = tf.cast(self.logits, tf.float32)
 
 	# 自监督损失
 	def hierarchical_self_supervision(self, em, adj):
@@ -330,6 +338,8 @@ class MHCN(GraphRecommender):
 		reg_loss = 0
 		for key in self.weights:
 			reg_loss += self.reg * tf.nn.l2_loss(self.weights[key])
+		# reg_loss += self.reg * (tf.nn.l2_loss(self.batch_user_emb) + tf.nn.l2_loss(self.batch_examiner_emb) +
+		# 						tf.nn.l2_loss(self.batch_item_emb))
 		total_loss = rec_loss + reg_loss + self.ss_loss
 		opt = tf.compat.v1.train.AdamOptimizer(self.lRate)
 		train_op = opt.minimize(total_loss)
@@ -338,22 +348,28 @@ class MHCN(GraphRecommender):
 
 		# 正确率
 		self.correct_predictions = tf.equal(self.logits, self.batch_labels)
-		self.accuracy = tf.reduce_mean(tf.cast(self.correct_predictions, "float"), name="accuracy")
+		self.accuracy = tf.reduce_mean(tf.cast(self.correct_predictions, tf.float32), name="accuracy")
 
 		# TODO：修改
 		for epoch in range(self.maxEpoch):
 			for n, batch in enumerate(next_batch_pairwise(self.data, self.batch_size)):
-				user_idx, i_idx, labels = batch
-				_, loss1, loss2, acc = self.sess.run([train_op, rec_loss, self.ss_loss, self.accuracy], feed_dict={self.u_idx: user_idx, self.v_idx: i_idx, self.batch_labels: labels})
+				e_idx, user_idx, i_idx, labels = batch
+				self.concat_emb_array = self.sess.run(self.concat_embeddings, feed_dict={self.u_idx: user_idx, self.v_idx: i_idx, self.examiner_idx: e_idx})
+				_, loss1, loss2, acc = self.sess.run([train_op, rec_loss, self.ss_loss, self.accuracy],
+										feed_dict={self.u_idx: user_idx, self.v_idx: i_idx, self.examiner_idx: e_idx,
+										self.batch_labels: labels, self.x: self.concat_emb_array})
 				print('training:', epoch + 1, 'batch', n, 'rec loss:', loss1, 'ssl loss',loss2, ' acc:', acc)
 			self.U, self.V = self.sess.run([self.final_user_embeddings, self.final_item_embeddings])
 			# validation
-			dev_acc = self.sess.run(self.accuracy, feed_dict={self.batch_labels: self.data.dev_data[4],
-									self.u_idx: self.data.dev_data[3], self.v_idx: self.data.dev_data[1]})
-
+			dev_examniers, dev_users, dev_items, dev_labels = self.dev_in_train()
+			e, u, i = np.asarray(dev_examniers).squeeze(), np.asarray(dev_users).squeeze(), np.asarray(dev_items).squeeze()
+			self.concat_emb_dev = np.concatenate((e, i, u), axis=1)
+			dev_logits, dev_acc = self.sess.run([self.logits, self.accuracy], feed_dict={self.batch_labels: dev_labels, self.x: self.concat_emb_dev})
+			# print(dev_logits)
 			print('Validating the model...')
 			print('-' * 120)
 			print('Epoch:', str(epoch + 1) + ', dev acc:', dev_acc)
+			print('-' * 120)
 		self.U, self.V = self.best_user_emb, self.best_item_emb
 
 	def train_by_item(self):
@@ -361,9 +377,8 @@ class MHCN(GraphRecommender):
 		reg_loss = 0
 		for key in self.weights:
 			reg_loss += self.reg * tf.nn.l2_loss(self.weights[key])
-		reg_loss += self.reg * (
-					tf.nn.l2_loss(self.batch_item_emb) + tf.nn.l2_loss(self.batch_neg_user_emb) + tf.nn.l2_loss(
-				self.batch_pos_user_emb))
+		reg_loss += self.reg * (tf.nn.l2_loss(self.batch_item_emb) + tf.nn.l2_loss(self.batch_neg_user_emb) +
+								tf.nn.l2_loss(self.batch_pos_user_emb))
 		total_loss = rec_loss + reg_loss + self.ss_loss
 		opt = tf.compat.v1.train.AdamOptimizer(self.lRate)
 		train_op = opt.minimize(total_loss)
@@ -394,3 +409,27 @@ class MHCN(GraphRecommender):
 		v = self.data.get_item_id(v)
 		return self.U.dot(self.V[v])  # 但是item可能不存在
 
+	def dev_in_train(self):
+		dev_len = len(self.data.dev_data)
+		dev_examiners = [self.data.dev_data[idx][0] for idx in range(dev_len)]
+		dev_users = [self.data.dev_data[idx][3] for idx in range(dev_len)]  # 获取当前batch的用户
+		dev_items = [self.data.dev_data[idx][1] for idx in range(dev_len)]  # 获取当前batch的item
+		dev_labels = [self.data.dev_data[idx][4] for idx in range(dev_len)]
+		new_labels = []
+		e_idx, u_idx, i_idx = [], [], []
+		# u_idx, i_idx, j_idx = [], [], []  # 分别表示user、item、负例user样本集合
+		# user_list = list(data.user.keys())
+		for i, examiner in enumerate(dev_examiners):
+			if dev_items[i] not in self.data.item or dev_users[i] not in self.data.user or examiner not in self.data.user:
+				dev_labels[i] = None
+				continue
+			new_labels.append(dev_labels[i])
+			e_idx.append(self.data.user[examiner])
+			i_idx.append(self.data.item[dev_items[i]])  # data.item[items[i]] 找到user对应的item的index
+			u_idx.append(self.data.user[dev_users[i]])  # 找到user的index
+		e_list, u_list, i_list = [], [], []
+		for idx, examiner in enumerate(e_idx):
+			e_list.append(self.U[examiner].reshape(1, -1))  # self.U[examiner]的形状是tuple(64,)
+			u_list.append(self.U[u_idx[idx]].reshape(1, -1))
+			i_list.append(self.V[i_idx[idx]].reshape(1, -1))
+		return e_list, u_list, i_list, new_labels

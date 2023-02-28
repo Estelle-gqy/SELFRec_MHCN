@@ -10,7 +10,7 @@ class Interaction(Data, Graph):
     def __init__(self, conf, training, test, dev):
         Graph.__init__(self)
         Data.__init__(self, conf, training, test, dev)
-        self.by_item = True  # True为给每个item推荐候选用户，False为给每个用户推荐商品
+        self.by_item = False  # True为给每个item推荐候选用户，False为给每个用户推荐商品
         self.user = {}
         self.item = {}
         self.train_titles = []
@@ -26,8 +26,8 @@ class Interaction(Data, Graph):
         self.dev_set_u = defaultdict(dict)
         self.dev_set_i = defaultdict(dict)
         self.__generate_set()
-        self.user_num = len(self.training_set_u)
-        self.item_num = len(self.training_set_i)
+        self.user_num = len(self.user)
+        self.item_num = len(self.item)
         self.ui_adj = self.__create_sparse_bipartite_adjacency()
         self.norm_adj = self.normalize_graph_mat(self.ui_adj)
         self.interaction_mat = self.__create_sparse_interaction_matrix()
@@ -79,6 +79,7 @@ class Interaction(Data, Graph):
             # by_user情况下 用户不在训练集中，就跳过
             if not self.by_item and user not in self.user:
                 continue
+
             self.test_set[user][item] = label
             self.test_set_item.add(item)
             self.test_set_i[item][user] = label
@@ -91,12 +92,12 @@ class Interaction(Data, Graph):
         return a sparse adjacency matrix with the shape (user number + item number, user number + item number)
         '''
         n_nodes = self.user_num + self.item_num
-        row_idx = [self.user[pair[0]] for pair in self.training_data]
+        row_idx = [self.user[pair[3]] for pair in self.training_data]
         col_idx = [self.item[pair[1]] for pair in self.training_data]
         user_np = np.array(row_idx)
         item_np = np.array(col_idx)
         ratings = np.ones_like(user_np, dtype=np.float32)
-        tmp_adj = sp.csr_matrix((ratings, (user_np, item_np + self.user_num)), shape=(n_nodes, n_nodes),dtype=np.float32)
+        tmp_adj = sp.csr_matrix((ratings, (user_np, item_np + self.user_num)), shape=(n_nodes, n_nodes), dtype=np.float32)
         adj_mat = tmp_adj + tmp_adj.T
         if self_connection:
             adj_mat += sp.eye(n_nodes)

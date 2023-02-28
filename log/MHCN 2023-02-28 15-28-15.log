@@ -1,0 +1,15 @@
+2023-02-28 15:28:16,796 - MHCN - INFO - ### model configuration ###
+2023-02-28 15:28:16,796 - MHCN - INFO - training.set=./dataset/retweet_prediction/train.txt
+2023-02-28 15:28:16,796 - MHCN - INFO - test.set=./dataset/retweet_prediction/test.txt
+2023-02-28 15:28:16,796 - MHCN - INFO - dev.set=./dataset/retweet_prediction/dev.txt
+2023-02-28 15:28:16,796 - MHCN - INFO - social.data=./dataset/retweet_prediction/trust.txt
+2023-02-28 15:28:16,796 - MHCN - INFO - model.name=MHCN
+2023-02-28 15:28:16,796 - MHCN - INFO - model.type=graph
+2023-02-28 15:28:16,796 - MHCN - INFO - item.ranking=-topN 100
+2023-02-28 15:28:16,796 - MHCN - INFO - embedding.size=64
+2023-02-28 15:28:16,796 - MHCN - INFO - num.max.epoch=10
+2023-02-28 15:28:16,813 - MHCN - INFO - batch_size=4096
+2023-02-28 15:28:16,813 - MHCN - INFO - learnRate=0.00001
+2023-02-28 15:28:16,813 - MHCN - INFO - reg.lambda=0.0001
+2023-02-28 15:28:16,813 - MHCN - INFO - MHCN=-n_layer 2 -ss_rate 0.01
+2023-02-28 15:28:16,813 - MHCN - INFO - output.setup=-dir ./results/
